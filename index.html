@@ -21,7 +21,7 @@
   input:focus,select:focus,textarea:focus{border-color:var(--purple);box-shadow:0 0 0 3px var(--purple-glow)}
   input[type="password"]{font-family:'Courier New',monospace;letter-spacing:1px}
   select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238888a0'%3E%3Cpath d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
-  textarea{resize:vertical;min-height:120px;font-family:'SF Mono','Fira Code','Courier New',monospace;font-size:13px;line-height:1.6}
+  textarea{resize:vertical;min-height:140px;font-family:'SF Mono','Fira Code','Courier New',monospace;font-size:13px;line-height:1.6}
   .row{display:flex;gap:12px}
   .row .field{flex:1}
   .btn{width:100%;padding:12px;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px}
@@ -35,7 +35,7 @@
   .curl-copy{background:none;border:1px solid var(--border);color:var(--muted);padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;transition:all .2s}
   .curl-copy:hover{border-color:var(--purple);color:var(--purple)}
   pre{background:var(--input-bg);border:1px solid var(--border);border-radius:8px;padding:14px;font-size:12px;line-height:1.7;overflow-x:auto;white-space:pre-wrap;word-break:break-all;color:var(--green)}
-  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);padding:10px 20px;border-radius:8px;font-size:13px;font-weight:500;opacity:0;transition:all .3s ease;pointer-events:none;z-index:99}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);padding:10px 20px;border-radius:8px;font-size:13px;font-weight:500;opacity:0;transition:all .3s ease;pointer-events:none;z-index:99;max-width:90vw;text-align:center}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   .toast.success{background:#065f46;color:#6ee7b7;border:1px solid #34d39955}
   .toast.error{background:#7f1d1d;color:#fca5a5;border:1px solid #f8717155}
@@ -46,7 +46,15 @@
   .tab{flex:1;padding:8px;text-align:center;font-size:12px;font-weight:600;cursor:pointer;background:var(--input-bg);color:var(--muted);border:none;transition:all .2s}
   .tab.active{background:var(--purple);color:#fff}
   .hidden{display:none}
-  .counter{text-align:right;font-size:11px;color:var(--muted);margin-top:4px}
+  .method-tabs{display:flex;gap:0;margin-bottom:18px;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  .method-tab{flex:1;padding:8px;text-align:center;font-size:11px;font-weight:600;cursor:pointer;background:var(--input-bg);color:var(--muted);border:none;transition:all .2s}
+  .method-tab.active{background:#1e3a2f;color:var(--green);border-color:#34d39944}
+  .method-label{font-size:11px;color:var(--muted);text-align:center;margin-bottom:8px}
+  .log-history{margin-top:8px}
+  .log-entry{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:6px;margin-bottom:4px;font-size:12px;font-family:'SF Mono','Courier New',monospace}
+  .log-entry.ok{background:#065f4622;color:var(--green)}
+  .log-entry.fail{background:#7f1d1d22;color:var(--red)}
+  .log-entry .time{color:var(--muted);font-size:11px}
 </style>
 </head>
 <body>
@@ -54,7 +62,7 @@
 <div class="container">
   <div class="logo">
     <h1>🐶 Datadog <span>Log Sender</span></h1>
-    <p>Send test logs to Datadog instantly — no backend, no setup</p>
+    <p>Send test logs to Datadog — browser-friendly, no backend needed</p>
   </div>
 
   <div class="card">
@@ -63,7 +71,7 @@
       <input type="password" id="apiKey" placeholder="Enter your Datadog API key" autocomplete="off">
       <div class="shield">
         <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        Key stays in your browser — sent directly to Datadog's API
+        Key stays in your browser — never stored, sent only to Datadog
       </div>
     </div>
 
@@ -72,11 +80,11 @@
         <label>Site</label>
         <select id="site">
           <option value="datadoghq.com">US1 — datadoghq.com</option>
-          <option value="us3.datadoghq.com">US3 — us3.datadoghq.com</option>
-          <option value="us5.datadoghq.com">US5 — us5.datadoghq.com</option>
-          <option value="datadoghq.eu">EU — datadoghq.eu</option>
-          <option value="ap1.datadoghq.com">AP1 — ap1.datadoghq.com</option>
-          <option value="ddog-gov.com">GOV — ddog-gov.com</option>
+          <option value="us3.datadoghq.com">US3</option>
+          <option value="us5.datadoghq.com">US5</option>
+          <option value="datadoghq.eu">EU</option>
+          <option value="ap1.datadoghq.com">AP1</option>
+          <option value="ddog-gov.com">GOV</option>
         </select>
       </div>
       <div class="field">
@@ -118,8 +126,11 @@
     </div>
 
     <div class="field hidden" id="jsonTab">
-      <label>JSON Body</label>
-      <textarea id="jsonBody" placeholder='{"message": "hello", "custom_field": "value"}'></textarea>
+      <label>JSON Body <span style="font-weight:400;text-transform:none">(paste only the JSON object, no curl)</span></label>
+      <textarea id="jsonBody" placeholder='{
+  "message": "hello world",
+  "custom_field": "value"
+}'></textarea>
     </div>
 
     <div class="field" style="margin-top:4px">
@@ -128,11 +139,13 @@
         Send Log
       </button>
     </div>
+
+    <div class="log-history" id="history"></div>
   </div>
 
   <div class="card curl-box">
     <div class="curl-header">
-      <span>Equivalent cURL</span>
+      <span>Equivalent cURL <span style="font-weight:400;text-transform:none;font-size:11px">(for terminal use)</span></span>
       <button class="curl-copy" onclick="copyCurl()">Copy</button>
     </div>
     <pre id="curlOutput">Enter your API key to see the cURL command...</pre>
@@ -143,6 +156,7 @@
 
 <script>
   let currentTab = 'simple';
+  let logHistory = [];
 
   function switchTab(tab) {
     currentTab = tab;
@@ -154,6 +168,11 @@
     updateCurl();
   }
 
+  function getEndpoint(site) {
+    // Use the browser-friendly endpoint that supports CORS
+    return `https://browser-intake-logs.${site}/api/v2/logs`;
+  }
+
   function buildPayload() {
     const level = document.getElementById('level').value;
     const service = document.getElementById('service').value || 'test-service';
@@ -162,14 +181,17 @@
 
     if (currentTab === 'json') {
       try {
-        const custom = JSON.parse(document.getElementById('jsonBody').value);
-        custom.ddsource = custom.ddsource || source;
-        custom.ddtags = custom.ddtags || tags;
-        custom.service = custom.service || service;
-        custom.status = custom.status || level;
+        const raw = document.getElementById('jsonBody').value.trim();
+        if (!raw) return null;
+        const custom = JSON.parse(raw);
+        // Only set defaults if not already in JSON
+        if (!custom.ddsource) custom.ddsource = source;
+        if (!custom.ddtags) custom.ddtags = tags;
+        if (!custom.service) custom.service = service;
+        if (!custom.status) custom.status = level;
         return custom;
-      } catch {
-        return null;
+      } catch(e) {
+        return { error: e.message };
       }
     }
 
@@ -195,8 +217,10 @@
     }
 
     const maskedKey = key.slice(0, 4) + '••••••••' + key.slice(-4);
-    const json = JSON.stringify(payload ? [payload] : [{}], null, 2);
+    const displayPayload = (payload && !payload.error) ? payload : {};
+    const json = JSON.stringify([displayPayload], null, 2);
 
+    // Show the standard API endpoint for cURL (not browser-intake)
     document.getElementById('curlOutput').textContent =
 `curl -X POST "https://http-intake.logs.${site}/api/v2/logs" \\
   -H "Content-Type: application/json" \\
@@ -208,33 +232,65 @@
     el.addEventListener('input', updateCurl);
   });
 
+  function addToHistory(ok, msg) {
+    const now = new Date().toLocaleTimeString();
+    logHistory.unshift({ ok, msg, time: now });
+    if (logHistory.length > 5) logHistory.pop();
+    renderHistory();
+  }
+
+  function renderHistory() {
+    const el = document.getElementById('history');
+    el.innerHTML = logHistory.map(h =>
+      `<div class="log-entry ${h.ok ? 'ok' : 'fail'}">
+        <span>${h.ok ? '✓' : '✗'} ${h.msg}</span>
+        <span class="time">${h.time}</span>
+      </div>`
+    ).join('');
+  }
+
   async function sendLog() {
     const key = document.getElementById('apiKey').value.trim();
     if (!key) { showToast('Please enter your API key', 'error'); return; }
 
     const site = document.getElementById('site').value;
     const payload = buildPayload();
-    if (!payload) { showToast('Invalid JSON payload', 'error'); return; }
+
+    if (!payload) { showToast('Please enter a log message or JSON', 'error'); return; }
+    if (payload.error) { showToast('Invalid JSON: ' + payload.error, 'error'); return; }
 
     const btn = document.getElementById('sendBtn');
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span> Sending...';
+    btn.innerHTML = '⏳ Sending...';
+
+    // Use browser-intake endpoint (CORS-friendly) with dd-api-key as query param
+    const endpoint = getEndpoint(site);
+    const url = `${endpoint}?dd-api-key=${encodeURIComponent(key)}`;
 
     try {
-      const res = await fetch(`https://http-intake.logs.${site}/api/v2/logs`, {
+      const res = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'DD-API-KEY': key },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify([payload])
       });
 
       if (res.ok) {
-        showToast('Log sent successfully! Check Datadog in ~15s', 'success');
+        const svc = payload.service || 'unknown';
+        showToast(`Log sent! Check Datadog Logs → service:${svc} in ~15s`, 'success');
+        addToHistory(true, `${payload.message || 'JSON log'} → ${svc}`);
       } else {
-        const err = await res.text();
-        showToast(`Failed (${res.status}): ${err.slice(0, 100)}`, 'error');
+        const errText = await res.text();
+        let errMsg = `HTTP ${res.status}`;
+        try {
+          const errJson = JSON.parse(errText);
+          errMsg = errJson.errors ? errJson.errors.join(', ') : errMsg;
+        } catch { errMsg += ': ' + errText.slice(0, 80); }
+        showToast(`Failed: ${errMsg}`, 'error');
+        addToHistory(false, errMsg);
       }
     } catch (e) {
-      showToast('Network error — check your connection or CORS', 'error');
+      showToast('Network error: ' + e.message, 'error');
+      addToHistory(false, 'Network error');
     }
 
     btn.disabled = false;
@@ -245,12 +301,12 @@
     const t = document.getElementById('toast');
     t.textContent = msg;
     t.className = 'toast ' + type + ' show';
-    setTimeout(() => t.classList.remove('show'), 3500);
+    setTimeout(() => t.classList.remove('show'), 4000);
   }
 
   function copyCurl() {
     const text = document.getElementById('curlOutput').textContent;
-    navigator.clipboard.writeText(text).then(() => showToast('cURL copied!', 'info'));
+    navigator.clipboard.writeText(text).then(() => showToast('cURL copied to clipboard!', 'info'));
   }
 
   updateCurl();
