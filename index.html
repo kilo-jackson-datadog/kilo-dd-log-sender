@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Datadog Log Sender</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{--bg:#0e0e12;--card:#16161d;--border:#2a2a3a;--purple:#7c5cfc;--purple-glow:#7c5cfc33;--green:#34d399;--red:#f87171;--text:#e4e4eb;--muted:#8888a0;--input-bg:#1e1e2a}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+  .container{width:100%;max-width:580px}
+  .logo{text-align:center;margin-bottom:32px}
+  .logo h1{font-size:22px;font-weight:600;letter-spacing:-0.5px}
+  .logo h1 span{color:var(--purple)}
+  .logo p{color:var(--muted);font-size:13px;margin-top:6px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:28px;margin-bottom:16px}
+  .field{margin-bottom:18px}
+  .field:last-child{margin-bottom:0}
+  label{display:block;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);margin-bottom:8px}
+  input,select,textarea{width:100%;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:14px;font-family:inherit;outline:none;transition:border .2s}
+  input:focus,select:focus,textarea:focus{border-color:var(--purple);box-shadow:0 0 0 3px var(--purple-glow)}
+  input[type="password"]{font-family:'Courier New',monospace;letter-spacing:1px}
+  select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238888a0'%3E%3Cpath d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+  textarea{resize:vertical;min-height:120px;font-family:'SF Mono','Fira Code','Courier New',monospace;font-size:13px;line-height:1.6}
+  .row{display:flex;gap:12px}
+  .row .field{flex:1}
+  .btn{width:100%;padding:12px;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px}
+  .btn-primary{background:var(--purple);color:#fff}
+  .btn-primary:hover{filter:brightness(1.15);transform:translateY(-1px)}
+  .btn-primary:active{transform:translateY(0)}
+  .btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none;filter:none}
+  .curl-box{margin-top:16px}
+  .curl-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .curl-header span{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted)}
+  .curl-copy{background:none;border:1px solid var(--border);color:var(--muted);padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;transition:all .2s}
+  .curl-copy:hover{border-color:var(--purple);color:var(--purple)}
+  pre{background:var(--input-bg);border:1px solid var(--border);border-radius:8px;padding:14px;font-size:12px;line-height:1.7;overflow-x:auto;white-space:pre-wrap;word-break:break-all;color:var(--green)}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);padding:10px 20px;border-radius:8px;font-size:13px;font-weight:500;opacity:0;transition:all .3s ease;pointer-events:none;z-index:99}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast.success{background:#065f46;color:#6ee7b7;border:1px solid #34d39955}
+  .toast.error{background:#7f1d1d;color:#fca5a5;border:1px solid #f8717155}
+  .toast.info{background:#1e1b4b;color:#a5b4fc;border:1px solid #7c5cfc55}
+  .shield{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);margin-top:12px}
+  .shield svg{width:12px;height:12px;stroke:var(--green);fill:none;stroke-width:2}
+  .tabs{display:flex;gap:0;margin-bottom:18px;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  .tab{flex:1;padding:8px;text-align:center;font-size:12px;font-weight:600;cursor:pointer;background:var(--input-bg);color:var(--muted);border:none;transition:all .2s}
+  .tab.active{background:var(--purple);color:#fff}
+  .hidden{display:none}
+  .counter{text-align:right;font-size:11px;color:var(--muted);margin-top:4px}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="logo">
+    <h1>🐶 Datadog <span>Log Sender</span></h1>
+    <p>Send test logs to Datadog instantly — no backend, no setup</p>
+  </div>
+
+  <div class="card">
+    <div class="field">
+      <label>API Key</label>
+      <input type="password" id="apiKey" placeholder="Enter your Datadog API key" autocomplete="off">
+      <div class="shield">
+        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Key stays in your browser — sent directly to Datadog's API
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>Site</label>
+        <select id="site">
+          <option value="datadoghq.com">US1 — datadoghq.com</option>
+          <option value="us3.datadoghq.com">US3 — us3.datadoghq.com</option>
+          <option value="us5.datadoghq.com">US5 — us5.datadoghq.com</option>
+          <option value="datadoghq.eu">EU — datadoghq.eu</option>
+          <option value="ap1.datadoghq.com">AP1 — ap1.datadoghq.com</option>
+          <option value="ddog-gov.com">GOV — ddog-gov.com</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Level</label>
+        <select id="level">
+          <option value="info">Info</option>
+          <option value="warn">Warning</option>
+          <option value="error">Error</option>
+          <option value="debug">Debug</option>
+          <option value="critical">Critical</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>Service</label>
+        <input type="text" id="service" placeholder="my-app" value="test-service">
+      </div>
+      <div class="field">
+        <label>Source</label>
+        <input type="text" id="source" placeholder="browser" value="browser">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Tags <span style="font-weight:400;text-transform:none">(comma-separated)</span></label>
+      <input type="text" id="tags" placeholder="env:staging, team:backend" value="env:test">
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('simple')">Simple Message</button>
+      <button class="tab" onclick="switchTab('json')">JSON Payload</button>
+    </div>
+
+    <div class="field" id="simpleTab">
+      <label>Log Message</label>
+      <textarea id="message" placeholder="Something happened in the app...">This is a test log from the Datadog Log Sender tool 🚀</textarea>
+    </div>
+
+    <div class="field hidden" id="jsonTab">
+      <label>JSON Body</label>
+      <textarea id="jsonBody" placeholder='{"message": "hello", "custom_field": "value"}'></textarea>
+    </div>
+
+    <div class="field" style="margin-top:4px">
+      <button class="btn btn-primary" id="sendBtn" onclick="sendLog()">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+        Send Log
+      </button>
+    </div>
+  </div>
+
+  <div class="card curl-box">
+    <div class="curl-header">
+      <span>Equivalent cURL</span>
+      <button class="curl-copy" onclick="copyCurl()">Copy</button>
+    </div>
+    <pre id="curlOutput">Enter your API key to see the cURL command...</pre>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  let currentTab = 'simple';
+
+  function switchTab(tab) {
+    currentTab = tab;
+    document.querySelectorAll('.tab').forEach((t, i) => {
+      t.classList.toggle('active', (i === 0 && tab === 'simple') || (i === 1 && tab === 'json'));
+    });
+    document.getElementById('simpleTab').classList.toggle('hidden', tab !== 'simple');
+    document.getElementById('jsonTab').classList.toggle('hidden', tab !== 'json');
+    updateCurl();
+  }
+
+  function buildPayload() {
+    const level = document.getElementById('level').value;
+    const service = document.getElementById('service').value || 'test-service';
+    const source = document.getElementById('source').value || 'browser';
+    const tags = document.getElementById('tags').value;
+
+    if (currentTab === 'json') {
+      try {
+        const custom = JSON.parse(document.getElementById('jsonBody').value);
+        custom.ddsource = custom.ddsource || source;
+        custom.ddtags = custom.ddtags || tags;
+        custom.service = custom.service || service;
+        custom.status = custom.status || level;
+        return custom;
+      } catch {
+        return null;
+      }
+    }
+
+    const message = document.getElementById('message').value || 'Test log';
+    return {
+      message,
+      ddsource: source,
+      ddtags: tags,
+      service,
+      hostname: 'log-sender-tool',
+      status: level
+    };
+  }
+
+  function updateCurl() {
+    const key = document.getElementById('apiKey').value;
+    const site = document.getElementById('site').value;
+    const payload = buildPayload();
+
+    if (!key) {
+      document.getElementById('curlOutput').textContent = 'Enter your API key to see the cURL command...';
+      return;
+    }
+
+    const maskedKey = key.slice(0, 4) + '••••••••' + key.slice(-4);
+    const json = JSON.stringify(payload ? [payload] : [{}], null, 2);
+
+    document.getElementById('curlOutput').textContent =
+`curl -X POST "https://http-intake.logs.${site}/api/v2/logs" \\
+  -H "Content-Type: application/json" \\
+  -H "DD-API-KEY: ${maskedKey}" \\
+  -d '${json}'`;
+  }
+
+  document.querySelectorAll('input, select, textarea').forEach(el => {
+    el.addEventListener('input', updateCurl);
+  });
+
+  async function sendLog() {
+    const key = document.getElementById('apiKey').value.trim();
+    if (!key) { showToast('Please enter your API key', 'error'); return; }
+
+    const site = document.getElementById('site').value;
+    const payload = buildPayload();
+    if (!payload) { showToast('Invalid JSON payload', 'error'); return; }
+
+    const btn = document.getElementById('sendBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Sending...';
+
+    try {
+      const res = await fetch(`https://http-intake.logs.${site}/api/v2/logs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'DD-API-KEY': key },
+        body: JSON.stringify([payload])
+      });
+
+      if (res.ok) {
+        showToast('Log sent successfully! Check Datadog in ~15s', 'success');
+      } else {
+        const err = await res.text();
+        showToast(`Failed (${res.status}): ${err.slice(0, 100)}`, 'error');
+      }
+    } catch (e) {
+      showToast('Network error — check your connection or CORS', 'error');
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg> Send Log';
+  }
+
+  function showToast(msg, type) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast ' + type + ' show';
+    setTimeout(() => t.classList.remove('show'), 3500);
+  }
+
+  function copyCurl() {
+    const text = document.getElementById('curlOutput').textContent;
+    navigator.clipboard.writeText(text).then(() => showToast('cURL copied!', 'info'));
+  }
+
+  updateCurl();
+</script>
+</body>
+</html>
