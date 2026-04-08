@@ -57,16 +57,16 @@
 <div class="container">
   <div class="logo">
     <h1>🐶 Datadog <span>Log Sender</span></h1>
-    <p>Send test logs to Datadog — just paste your API key and go</p>
+    <p>Send test logs to Datadog — just paste your Client Token and go</p>
   </div>
 
   <div class="card">
     <div class="field">
-      <label>API Key</label>
-      <input type="password" id="apiKey" placeholder="Enter your Datadog API key" autocomplete="off">
+      <label>Client Token</label>
+      <input type="password" id="apiKey" placeholder="e.g. pub1234567890abcdef..." autocomplete="off">
       <div class="shield">
         <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        Sent directly to Datadog via their official SDK — never stored
+        Get it from Datadog → Org Settings → Client Tokens. Saved in your browser for next time.
       </div>
     </div>
 
@@ -166,7 +166,13 @@
     });
     document.getElementById('simpleTab').classList.toggle('hidden', tab !== 'simple');
     document.getElementById('jsonTab').classList.toggle('hidden', tab !== 'json');
-    updateCurl();
+    // Load saved token from cookie on page load
+  try {
+    const saved = document.cookie.replace(/(?:(?:^|.*;\s*)ddtoken\s*=\s*([^;]*).*$)|^.*$/, "$1");
+    if (saved) document.getElementById('apiKey').value = saved;
+  } catch(e) {}
+
+  updateCurl();
   }
 
   function initSDK(apiKey, site) {
@@ -244,7 +250,10 @@
 
   async function sendLog() {
     const key = document.getElementById('apiKey').value.trim();
-    if (!key) { showToast('Enter your API key', 'error'); return; }
+    if (!key) { showToast('Enter your Client Token', 'error'); return; }
+
+    // Save token in cookie so user doesn't have to paste again
+    try { document.cookie = `ddtoken=${key};max-age=31536000;path=/;SameSite=Lax`; } catch(e) {}
 
     const site = document.getElementById('site').value;
     const payload = buildPayload();
