@@ -64,14 +64,9 @@
     <div class="field">
       <label>Client Token</label>
       <input type="password" id="apiKey" placeholder="e.g. pub1234567890abcdef..." autocomplete="off">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
-        <div class="shield" style="margin-top:0">
-          <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          Datadog → Org Settings → Client Tokens
-        </div>
-        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;color:var(--muted);text-transform:none;letter-spacing:0;margin:0">
-          <input type="checkbox" id="rememberToken" onchange="saveToHash()" checked style="width:auto;accent-color:var(--purple)"> Remember
-        </label>
+      <div class="shield">
+        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Datadog → Org Settings → Client Tokens. Auto-saved in your browser.
       </div>
     </div>
 
@@ -175,33 +170,32 @@
   function saveToHash() {
     const key = document.getElementById('apiKey').value.trim();
     const site = document.getElementById('site').value;
-    const remember = document.getElementById('rememberToken').checked;
-    if (remember && key) {
-      window.location.hash = btoa(JSON.stringify({ t: key, s: site }));
-    } else {
-      window.location.hash = '';
+    if (key) {
+      history.replaceState(null, '', '#' + btoa(JSON.stringify({ t: key, s: site })));
     }
   }
 
-  // Also save when token or site changes
+  // Attach events
   document.getElementById('apiKey').addEventListener('input', function() {
-    if (document.getElementById('rememberToken').checked) saveToHash();
+    saveToHash();
     updateCurl();
   });
   document.getElementById('site').addEventListener('change', function() {
-    if (document.getElementById('rememberToken').checked) saveToHash();
+    saveToHash();
     updateCurl();
   });
+  document.querySelectorAll('input:not(#apiKey):not(#rememberToken), select:not(#site), textarea').forEach(el => el.addEventListener('input', updateCurl));
 
   // Load saved token from URL hash on page load
   function loadToken() {
     try {
-      if (window.location.hash && window.location.hash.length > 1) {
-        const data = JSON.parse(atob(window.location.hash.slice(1)));
+      const hash = window.location.hash;
+      if (hash && hash.length > 1) {
+        const data = JSON.parse(atob(hash.slice(1)));
         if (data.t) document.getElementById('apiKey').value = data.t;
         if (data.s) document.getElementById('site').value = data.s;
       }
-    } catch(e) {}
+    } catch(e) { console.log('No saved token'); }
   }
   loadToken();
   updateCurl();
@@ -284,8 +278,8 @@
     const key = document.getElementById('apiKey').value.trim();
     if (!key) { showToast('Enter your Client Token', 'error'); return; }
 
-    // Save token to URL hash
-    if (document.getElementById('rememberToken').checked) saveToHash();
+    // Save token to URL hash silently
+    saveToHash();
 
     const site = document.getElementById('site').value;
     const payload = buildPayload();
