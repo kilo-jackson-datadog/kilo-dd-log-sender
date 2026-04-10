@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Datadog Log Sender</title>
-<script src="https://www.datadoghq-browser-agent.com/us1/v5/datadog-logs.js"></script>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   :root{--bg:#0e0e12;--card:#16161d;--border:#2a2a3a;--purple:#7c5cfc;--purple-glow:#7c5cfc33;--green:#34d399;--red:#f87171;--text:#e4e4eb;--muted:#8888a0;--input-bg:#1e1e2a}
@@ -19,13 +18,11 @@
   label{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);margin-bottom:6px}
   input,select,textarea{width:100%;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;outline:none;transition:border .2s}
   input:focus,select:focus,textarea:focus{border-color:var(--purple);box-shadow:0 0 0 3px var(--purple-glow)}
-  input[type="password"]{font-family:'Courier New',monospace;letter-spacing:1px}
   select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238888a0'%3E%3Cpath d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
   textarea{resize:vertical;font-family:'SF Mono','Fira Code','Courier New',monospace;font-size:13px;line-height:1.6}
   .row{display:flex;gap:10px}
   .row .field{flex:1}
-  .btn{width:100%;padding:13px;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:8px}
-  .btn-send{background:var(--purple);color:#fff}
+  .btn-send{width:100%;padding:13px;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--purple);color:#fff}
   .btn-send:hover{filter:brightness(1.15);transform:translateY(-1px)}
   .btn-send:active{transform:translateY(0)}
   .btn-send:disabled{opacity:.5;cursor:not-allowed;transform:none;filter:none}
@@ -63,7 +60,7 @@
   <div class="card">
     <div class="field">
       <label>Client Token</label>
-      <input type="password" id="apiKey" placeholder="e.g. pub1234567890abcdef..." autocomplete="off">
+      <input type="password" id="clientToken" placeholder="e.g. pub1234567890abcdef..." autocomplete="off">
       <input type="text" name="username" autocomplete="username" value="datadog-log-sender" style="display:none">
       <div class="shield">
         <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
@@ -112,8 +109,8 @@
     </div>
 
     <div class="tabs">
-      <button class="tab active" onclick="switchTab('simple')">Simple Message</button>
-      <button class="tab" onclick="switchTab('json')">JSON Payload</button>
+      <button class="tab active" id="tabSimple" onclick="switchTab('simple')">Simple Message</button>
+      <button class="tab" id="tabJson" onclick="switchTab('json')">JSON Payload</button>
     </div>
 
     <div class="field" id="simpleTab">
@@ -133,7 +130,7 @@
     </div>
 
     <div class="field">
-      <button class="btn btn-send" id="sendBtn" onclick="sendLog()">
+      <button class="btn-send" id="sendBtn" onclick="sendLog()">
         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
         Send Log
       </button>
@@ -154,208 +151,227 @@
 <div class="toast" id="toast"></div>
 
 <script>
-  let currentTab = 'simple';
-  let logHistory = [];
-  let sdkInitialized = false;
-  let lastInitKey = '';
-  let lastInitSite = '';
+(function() {
+  // ---- State ----
+  var currentTab = 'simple';
+  var logHistory = [];
+  var sdkReady = false;
 
-  function switchTab(tab) {
-    currentTab = tab;
-    document.querySelectorAll('.tab').forEach((t, i) => {
-      t.classList.toggle('active', (i === 0 && tab === 'simple') || (i === 1 && tab === 'json'));
-    });
-    document.getElementById('simpleTab').classList.toggle('hidden', tab !== 'simple');
-    document.getElementById('jsonTab').classList.toggle('hidden', tab !== 'json');
-    // Save token to URL hash (never sent to server, stays local)
-  function saveToHash() {
-    const key = document.getElementById('apiKey').value.trim();
-    const site = document.getElementById('site').value;
-    if (key) {
-      history.replaceState(null, '', '#' + btoa(JSON.stringify({ t: key, s: site })));
-    }
-  }
+  // ---- Load Datadog Browser SDK ----
+  var script = document.createElement('script');
+  script.src = 'https://www.datadoghq-browser-agent.com/us1/v5/datadog-logs.js';
+  script.onload = function() {
+    console.log('DD SDK loaded');
+    // If token already present, init SDK
+    var token = document.getElementById('clientToken').value.trim();
+    var site = document.getElementById('site').value;
+    if (token) tryInitSDK(token, site);
+  };
+  document.head.appendChild(script);
 
-  // Attach events
-  document.getElementById('apiKey').addEventListener('input', function() {
-    saveToHash();
-    updateCurl();
-  });
-  document.getElementById('site').addEventListener('change', function() {
-    saveToHash();
-    updateCurl();
-  });
-  document.querySelectorAll('input:not(#apiKey):not(#rememberToken), select:not(#site), textarea').forEach(el => el.addEventListener('input', updateCurl));
-
-  // Load saved token from URL hash on page load
-  function loadToken() {
-    try {
-      const hash = window.location.hash;
-      if (hash && hash.length > 1) {
-        const data = JSON.parse(atob(hash.slice(1)));
-        if (data.t) document.getElementById('apiKey').value = data.t;
-        if (data.s) document.getElementById('site').value = data.s;
-      }
-    } catch(e) { console.log('No saved token'); }
-  }
-  loadToken();
-
-  // Re-initialize SDK if token was loaded from hash
-  const loadedKey = document.getElementById('apiKey').value.trim();
-  const loadedSite = document.getElementById('site').value;
-  if (loadedKey) {
-    initSDK(loadedKey, loadedSite);
-  }
-
-  updateCurl();
-  }
-
-  function initSDK(apiKey, site) {
-    if (sdkInitialized) {
-      // SDK already initialized — if same key, reuse it
-      if (lastInitKey === apiKey && lastInitSite === site) return true;
-      // Different key — can't re-init, but still works for same org
-      return true;
-    }
-
+  // ---- SDK Init ----
+  function tryInitSDK(token, site) {
+    if (sdkReady) return true;
+    if (!window.DD_LOGS) return false;
     try {
       window.DD_LOGS.init({
-        clientToken: apiKey,
+        clientToken: token,
         site: site,
         service: 'log-sender-tool',
         forwardErrorsToLogs: false,
-        sessionSampleRate: 100,
+        sessionSampleRate: 100
       });
-      sdkInitialized = true;
-      lastInitKey = apiKey;
-      lastInitSite = site;
+      sdkReady = true;
+      console.log('DD SDK initialized');
       return true;
-    } catch (e) {
-      console.error('SDK init error:', e);
-      if (sdkInitialized) return true;
+    } catch(e) {
+      console.error('DD SDK init failed:', e);
       return false;
     }
   }
 
+  // ---- Persistence via URL hash ----
+  function saveToken() {
+    var token = document.getElementById('clientToken').value.trim();
+    var site = document.getElementById('site').value;
+    if (token) {
+      try {
+        var data = JSON.stringify({ t: token, s: site });
+        history.replaceState(null, '', '#' + btoa(data));
+      } catch(e) {}
+    }
+  }
+
+  function loadToken() {
+    try {
+      var hash = window.location.hash;
+      if (hash && hash.length > 1) {
+        var data = JSON.parse(atob(hash.substring(1)));
+        if (data.t) document.getElementById('clientToken').value = data.t;
+        if (data.s) document.getElementById('site').value = data.s;
+        return true;
+      }
+    } catch(e) {}
+    return false;
+  }
+
+  // ---- Tab switching ----
+  window.switchTab = function(tab) {
+    currentTab = tab;
+    document.getElementById('tabSimple').className = tab === 'simple' ? 'tab active' : 'tab';
+    document.getElementById('tabJson').className = tab === 'json' ? 'tab active' : 'tab';
+    document.getElementById('simpleTab').className = tab === 'simple' ? 'field' : 'field hidden';
+    document.getElementById('jsonTab').className = tab === 'json' ? 'field' : 'field hidden';
+    updateCurl();
+  };
+
+  // ---- Build log payload ----
   function buildPayload() {
-    const level = document.getElementById('level').value;
-    const service = document.getElementById('service').value || 'test-service';
-    const source = document.getElementById('source').value || 'browser';
-    const tags = document.getElementById('tags').value;
+    var level = document.getElementById('level').value;
+    var service = document.getElementById('service').value || 'test-service';
+    var source = document.getElementById('source').value || 'browser';
+    var tags = document.getElementById('tags').value;
 
     if (currentTab === 'json') {
+      var raw = document.getElementById('jsonBody').value.trim();
+      if (!raw) return null;
       try {
-        const raw = document.getElementById('jsonBody').value.trim();
-        if (!raw) return null;
-        const custom = JSON.parse(raw);
+        var custom = JSON.parse(raw);
         if (!custom.ddsource) custom.ddsource = source;
         if (!custom.ddtags) custom.ddtags = tags;
         if (!custom.service) custom.service = service;
         if (!custom.status) custom.status = level;
         return custom;
-      } catch(e) { return { error: e.message }; }
+      } catch(e) {
+        return { error: e.message };
+      }
     }
 
     return {
       message: document.getElementById('message').value || 'Test log',
-      ddsource: source, ddtags: tags, service,
-      hostname: 'log-sender-tool', status: level
+      ddsource: source,
+      ddtags: tags,
+      service: service,
+      hostname: 'log-sender-tool',
+      status: level
     };
   }
 
+  // ---- cURL preview ----
   function updateCurl() {
-    const key = document.getElementById('apiKey').value;
-    const site = document.getElementById('site').value;
-    const payload = buildPayload();
-    if (!key) { document.getElementById('curlOutput').textContent = 'Fill in fields above...'; return; }
-    if (payload && payload.error) { document.getElementById('curlOutput').textContent = '⚠ JSON: ' + payload.error; return; }
-    const m = key.slice(0, 4) + '••••' + key.slice(-4);
-    document.getElementById('curlOutput').textContent =
-`curl -X POST "https://http-intake.logs.${site}/api/v2/logs" \\
-  -H "Content-Type: application/json" \\
-  -H "DD-API-KEY: ${m}" \\
-  -d '${JSON.stringify([payload || {}], null, 2)}'`;
+    var token = document.getElementById('clientToken').value.trim();
+    var site = document.getElementById('site').value;
+    var payload = buildPayload();
+    var el = document.getElementById('curlOutput');
+
+    if (!token) { el.textContent = 'Enter your Client Token above...'; return; }
+    if (payload && payload.error) { el.textContent = 'JSON Error: ' + payload.error; return; }
+
+    var masked = token.substring(0, 4) + '••••' + token.substring(token.length - 4);
+    var json = JSON.stringify([payload || {}], null, 2);
+    el.textContent = 'curl -X POST "https://http-intake.logs.' + site + '/api/v2/logs" \\\n  -H "Content-Type: application/json" \\\n  -H "DD-API-KEY: ' + masked + '" \\\n  -d \'' + json + '\'';
   }
 
-  document.querySelectorAll('input:not(#apiKey):not(#rememberToken), select:not(#site), textarea').forEach(el => el.addEventListener('input', updateCurl));
+  // ---- Send log ----
+  window.sendLog = function() {
+    var token = document.getElementById('clientToken').value.trim();
+    if (!token) { showToast('Enter your Client Token', 'error'); return; }
 
-  function addToHistory(ok, msg) {
-    logHistory.unshift({ ok, msg, time: new Date().toLocaleTimeString() });
-    if (logHistory.length > 5) logHistory.pop();
-    document.getElementById('history').innerHTML = logHistory.map(h =>
-      `<div class="log-entry ${h.ok?'ok':'fail'}"><span>${h.ok?'✓':'✗'} ${h.msg}</span><span class="time">${h.time}</span></div>`
-    ).join('');
-  }
-
-  async function sendLog() {
-    const key = document.getElementById('apiKey').value.trim();
-    if (!key) { showToast('Enter your Client Token', 'error'); return; }
-
-    // Save token to URL hash silently
-    saveToHash();
-
-    const site = document.getElementById('site').value;
-    const payload = buildPayload();
+    var site = document.getElementById('site').value;
+    var payload = buildPayload();
     if (!payload) { showToast('Enter a log message or JSON', 'error'); return; }
     if (payload.error) { showToast('Invalid JSON: ' + payload.error, 'error'); return; }
 
-    const btn = document.getElementById('sendBtn');
-    btn.disabled = true;
-    btn.innerHTML = '⏳ Sending...';
+    // Save token
+    saveToken();
 
-    // Initialize SDK with the API key as clientToken
-    const ok = initSDK(key, site);
-    if (!ok) {
-      showToast('Failed to initialize SDK', 'error');
-      btn.disabled = false;
-      btn.innerHTML = restoreBtn();
-      return;
+    // Init SDK if not ready
+    if (!sdkReady) {
+      if (!window.DD_LOGS) {
+        showToast('SDK still loading, try again in a second', 'error');
+        return;
+      }
+      var ok = tryInitSDK(token, site);
+      if (!ok) { showToast('Failed to initialize SDK', 'error'); return; }
     }
 
+    var btn = document.getElementById('sendBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Sending...';
+
     try {
-      const level = document.getElementById('level').value;
-      const msg = payload.message || JSON.stringify(payload).slice(0, 100);
-      const context = Object.assign({}, payload);
-      delete context.message;
+      var msg = payload.message || JSON.stringify(payload).substring(0, 100);
+      var context = {};
+      for (var k in payload) {
+        if (k !== 'message') context[k] = payload[k];
+      }
 
-      // Send using the SDK logger
-      const logMethod = level === 'warn' ? 'warn' : level === 'error' || level === 'critical' ? 'error' : level === 'debug' ? 'debug' : 'info';
-      window.DD_LOGS.logger[logMethod](msg, context);
+      var level = document.getElementById('level').value;
+      if (level === 'warn') window.DD_LOGS.logger.warn(msg, context);
+      else if (level === 'error' || level === 'critical') window.DD_LOGS.logger.error(msg, context);
+      else if (level === 'debug') window.DD_LOGS.logger.debug(msg, context);
+      else window.DD_LOGS.logger.info(msg, context);
 
-      const svc = payload.service || 'test-service';
-      showToast(`✓ Log sent! Check Datadog → service:${svc}`, 'success');
-      addToHistory(true, msg.slice(0, 50));
-    } catch (e) {
+      showToast('✓ Log sent! Check Datadog in ~15s → service:' + (payload.service || 'log-sender-tool'), 'success');
+      addHistory(true, msg.substring(0, 50));
+    } catch(e) {
       showToast('Error: ' + e.message, 'error');
-      addToHistory(false, e.message);
+      addHistory(false, e.message);
     }
 
     btn.disabled = false;
-    btn.innerHTML = restoreBtn();
-  }
+    btn.innerHTML = '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg> Send Log';
+  };
 
-  function restoreBtn() {
-    return '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg> Send Log';
-  }
-
-  function copyCurl() {
-    const key = document.getElementById('apiKey').value;
-    if (!key) { showToast('Enter API key first', 'error'); return; }
-    const site = document.getElementById('site').value;
-    const payload = buildPayload();
+  // ---- Copy cURL ----
+  window.copyCurl = function() {
+    var token = document.getElementById('clientToken').value.trim();
+    if (!token) { showToast('Enter Client Token first', 'error'); return; }
+    var site = document.getElementById('site').value;
+    var payload = buildPayload();
     if (!payload || payload.error) return;
-    const curl = `curl -X POST "https://http-intake.logs.${site}/api/v2/logs" \\\n  -H "Content-Type: application/json" \\\n  -H "DD-API-KEY: ${key}" \\\n  -d '${JSON.stringify([payload], null, 2)}'`;
-    navigator.clipboard.writeText(curl).then(() => showToast('cURL copied!', 'info'));
+    var json = JSON.stringify([payload], null, 2);
+    var curl = 'curl -X POST "https://http-intake.logs.' + site + '/api/v2/logs" \\\n  -H "Content-Type: application/json" \\\n  -H "DD-API-KEY: ' + token + '" \\\n  -d \'' + json + '\'';
+    navigator.clipboard.writeText(curl).then(function() { showToast('cURL copied!', 'info'); });
+  };
+
+  // ---- History ----
+  function addHistory(ok, msg) {
+    var now = new Date().toLocaleTimeString();
+    logHistory.unshift({ ok: ok, msg: msg, time: now });
+    if (logHistory.length > 5) logHistory.pop();
+    var html = '';
+    for (var i = 0; i < logHistory.length; i++) {
+      var h = logHistory[i];
+      html += '<div class="log-entry ' + (h.ok ? 'ok' : 'fail') + '"><span>' + (h.ok ? '✓' : '✗') + ' ' + h.msg + '</span><span class="time">' + h.time + '</span></div>';
+    }
+    document.getElementById('history').innerHTML = html;
   }
 
+  // ---- Toast ----
   function showToast(msg, type) {
-    const t = document.getElementById('toast');
+    var t = document.getElementById('toast');
     t.textContent = msg;
     t.className = 'toast ' + type + ' show';
-    setTimeout(() => t.classList.remove('show'), 4000);
+    clearTimeout(t._timer);
+    t._timer = setTimeout(function() { t.classList.remove('show'); }, 4000);
   }
 
+  // ---- Event listeners ----
+  document.getElementById('clientToken').addEventListener('input', function() { saveToken(); updateCurl(); });
+  document.getElementById('site').addEventListener('change', function() { saveToken(); updateCurl(); });
+  document.getElementById('level').addEventListener('change', updateCurl);
+  document.getElementById('service').addEventListener('input', updateCurl);
+  document.getElementById('source').addEventListener('input', updateCurl);
+  document.getElementById('tags').addEventListener('input', updateCurl);
+  document.getElementById('message').addEventListener('input', updateCurl);
+  document.getElementById('jsonBody').addEventListener('input', updateCurl);
+
+  // ---- Init on page load ----
+  loadToken();
   updateCurl();
+
+})();
 </script>
 </body>
 </html>
