@@ -166,12 +166,24 @@
     });
     document.getElementById('simpleTab').classList.toggle('hidden', tab !== 'simple');
     document.getElementById('jsonTab').classList.toggle('hidden', tab !== 'json');
-    // Load saved token from cookie on page load
-  try {
-    const saved = document.cookie.replace(/(?:(?:^|.*;\s*)ddtoken\s*=\s*([^;]*).*$)|^.*$/, "$1");
-    if (saved) document.getElementById('apiKey').value = saved;
-  } catch(e) {}
-
+    // Load saved token on page load
+  function loadToken() {
+    try {
+      const cookies = document.cookie.split(';');
+      for (let c of cookies) {
+        c = c.trim();
+        if (c.startsWith('ddtoken=')) {
+          const val = c.substring(8);
+          if (val) document.getElementById('apiKey').value = val;
+        }
+        if (c.startsWith('ddsite=')) {
+          const val = c.substring(7);
+          if (val) document.getElementById('site').value = val;
+        }
+      }
+    } catch(e) {}
+  }
+  loadToken();
   updateCurl();
   }
 
@@ -252,8 +264,11 @@
     const key = document.getElementById('apiKey').value.trim();
     if (!key) { showToast('Enter your Client Token', 'error'); return; }
 
-    // Save token in cookie so user doesn't have to paste again
-    try { document.cookie = `ddtoken=${key};max-age=31536000;path=/;SameSite=Lax`; } catch(e) {}
+    // Save token in cookie + also save site selection
+    try { 
+      document.cookie = "ddtoken=" + key + ";max-age=31536000;path=/;SameSite=Lax;Secure";
+      document.cookie = "ddsite=" + site + ";max-age=31536000;path=/;SameSite=Lax;Secure";
+    } catch(e) {}
 
     const site = document.getElementById('site').value;
     const payload = buildPayload();
