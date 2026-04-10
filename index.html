@@ -199,11 +199,24 @@
     } catch(e) { console.log('No saved token'); }
   }
   loadToken();
+
+  // Re-initialize SDK if token was loaded from hash
+  const loadedKey = document.getElementById('apiKey').value.trim();
+  const loadedSite = document.getElementById('site').value;
+  if (loadedKey) {
+    initSDK(loadedKey, loadedSite);
+  }
+
   updateCurl();
   }
 
   function initSDK(apiKey, site) {
-    if (sdkInitialized && lastInitKey === apiKey && lastInitSite === site) return true;
+    if (sdkInitialized) {
+      // SDK already initialized — if same key, reuse it
+      if (lastInitKey === apiKey && lastInitSite === site) return true;
+      // Different key — can't re-init, but still works for same org
+      return true;
+    }
 
     try {
       window.DD_LOGS.init({
@@ -218,8 +231,7 @@
       lastInitSite = site;
       return true;
     } catch (e) {
-      // SDK already initialized — can't re-init with different key
-      // Still return true if it was initialized before
+      console.error('SDK init error:', e);
       if (sdkInitialized) return true;
       return false;
     }
