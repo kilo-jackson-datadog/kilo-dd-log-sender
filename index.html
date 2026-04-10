@@ -64,9 +64,14 @@
     <div class="field">
       <label>Client Token</label>
       <input type="password" id="apiKey" placeholder="e.g. pub1234567890abcdef..." autocomplete="off">
-      <div class="shield">
-        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        Get it from Datadog → Org Settings → Client Tokens. Saved in your browser for next time.
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
+        <div class="shield" style="margin-top:0">
+          <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Datadog → Org Settings → Client Tokens
+        </div>
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;color:var(--muted);text-transform:none;letter-spacing:0;margin:0">
+          <input type="checkbox" id="rememberToken" onchange="saveToHash()" checked style="width:auto;accent-color:var(--purple)"> Remember
+        </label>
       </div>
     </div>
 
@@ -166,20 +171,35 @@
     });
     document.getElementById('simpleTab').classList.toggle('hidden', tab !== 'simple');
     document.getElementById('jsonTab').classList.toggle('hidden', tab !== 'json');
-    // Load saved token on page load
+    // Save token to URL hash (never sent to server, stays local)
+  function saveToHash() {
+    const key = document.getElementById('apiKey').value.trim();
+    const site = document.getElementById('site').value;
+    const remember = document.getElementById('rememberToken').checked;
+    if (remember && key) {
+      window.location.hash = btoa(JSON.stringify({ t: key, s: site }));
+    } else {
+      window.location.hash = '';
+    }
+  }
+
+  // Also save when token or site changes
+  document.getElementById('apiKey').addEventListener('input', function() {
+    if (document.getElementById('rememberToken').checked) saveToHash();
+    updateCurl();
+  });
+  document.getElementById('site').addEventListener('change', function() {
+    if (document.getElementById('rememberToken').checked) saveToHash();
+    updateCurl();
+  });
+
+  // Load saved token from URL hash on page load
   function loadToken() {
     try {
-      const cookies = document.cookie.split(';');
-      for (let c of cookies) {
-        c = c.trim();
-        if (c.startsWith('ddtoken=')) {
-          const val = c.substring(8);
-          if (val) document.getElementById('apiKey').value = val;
-        }
-        if (c.startsWith('ddsite=')) {
-          const val = c.substring(7);
-          if (val) document.getElementById('site').value = val;
-        }
+      if (window.location.hash && window.location.hash.length > 1) {
+        const data = JSON.parse(atob(window.location.hash.slice(1)));
+        if (data.t) document.getElementById('apiKey').value = data.t;
+        if (data.s) document.getElementById('site').value = data.s;
       }
     } catch(e) {}
   }
@@ -264,11 +284,8 @@
     const key = document.getElementById('apiKey').value.trim();
     if (!key) { showToast('Enter your Client Token', 'error'); return; }
 
-    // Save token in cookie + also save site selection
-    try { 
-      document.cookie = "ddtoken=" + key + ";max-age=31536000;path=/;SameSite=Lax;Secure";
-      document.cookie = "ddsite=" + site + ";max-age=31536000;path=/;SameSite=Lax;Secure";
-    } catch(e) {}
+    // Save token to URL hash
+    if (document.getElementById('rememberToken').checked) saveToHash();
 
     const site = document.getElementById('site').value;
     const payload = buildPayload();
