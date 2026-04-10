@@ -270,7 +270,7 @@
   -d '${JSON.stringify([payload || {}], null, 2)}'`;
   }
 
-  document.querySelectorAll('input, select, textarea').forEach(el => el.addEventListener('input', updateCurl));
+  document.querySelectorAll('input:not(#apiKey):not(#rememberToken), select:not(#site), textarea').forEach(el => el.addEventListener('input', updateCurl));
 
   function addToHistory(ok, msg) {
     logHistory.unshift({ ok, msg, time: new Date().toLocaleTimeString() });
